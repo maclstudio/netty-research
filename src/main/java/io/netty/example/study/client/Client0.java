@@ -45,9 +45,9 @@ public class Client0 {
 
         ChannelFuture channelFuture = bootstrap.connect("127.0.0.1", 8090).sync();
         RequestMessage requestMessage = new RequestMessage(IdUtil.nextId(), new OrderOperation(1001, "tudou"));
-        //for(int i = 0; i < 10000; i++) {
-        channelFuture.channel().writeAndFlush(requestMessage);
-      //  }
+        for(int i = 0; i < 20; i++) {
+            channelFuture.channel().writeAndFlush(requestMessage);
+       }
         channelFuture.channel().closeFuture().get();
     }
 }

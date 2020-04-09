@@ -7,11 +7,13 @@ import io.netty.example.study.common.Operation;
 import io.netty.example.study.common.OperationResult;
 import io.netty.example.study.common.RequestMessage;
 import io.netty.example.study.common.ResponseMessage;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author : chenglong.ma@shuyun.com
  * @date : 2020/4/6
  */
+@Slf4j
 public class OrderServerProcessHandler extends SimpleChannelInboundHandler<RequestMessage> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, RequestMessage requestMessage) throws Exception {
@@ -22,7 +24,14 @@ public class OrderServerProcessHandler extends SimpleChannelInboundHandler<Reque
         ResponseMessage responseMessage = new ResponseMessage();
         responseMessage.setMessageHeader(requestMessage.getMessageHeader());
         responseMessage.setMessageBody(operationResult);
-
-        ctx.writeAndFlush(responseMessage);
+        //建议写时都加上这句判断
+        if(ctx.channel().isActive() && ctx.channel().isWritable()) {
+            ctx.writeAndFlush(responseMessage);
+        } else {
+            //todo 根据业务需求处理不能发的消息
+            log.error("channel can't be write, message dropped");
+        }
     }
+
+
 }

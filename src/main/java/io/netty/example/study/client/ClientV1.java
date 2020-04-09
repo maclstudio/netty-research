@@ -7,6 +7,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.example.study.client.codec.*;
+import io.netty.example.study.client.dispatch.ClientIdleCheckHandler;
+import io.netty.example.study.client.dispatch.KeepaliveHandler;
 import io.netty.example.study.common.Operation;
 import io.netty.example.study.common.order.OrderOperation;
 import io.netty.handler.logging.LogLevel;
@@ -23,16 +25,21 @@ public class ClientV1 {
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.group(new NioEventLoopGroup());
-
+        KeepaliveHandler keepaliveHandler = new KeepaliveHandler();
         bootstrap.handler(new ChannelInitializer<NioSocketChannel>() {
             @Override
             protected void initChannel(NioSocketChannel ch) throws Exception {
                 ChannelPipeline pipeline = ch.pipeline();
+                pipeline.addLast(new ClientIdleCheckHandler());
+
                 pipeline.addLast(new OrderFrameDecoder());
                 pipeline.addLast(new OrderFrameEncoder());
                 pipeline.addLast(new OrderProtocolDecoder());
                 pipeline.addLast(new OrderProtocolEncoder());
                 pipeline.addLast(new OperationToRequestMessageEncoder());
+
+                pipeline.addLast("keepaliveHandler", keepaliveHandler);
+
                 pipeline.addLast(new LoggingHandler(LogLevel.INFO));
 
             }

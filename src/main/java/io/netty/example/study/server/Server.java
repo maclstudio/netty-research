@@ -15,9 +15,13 @@ import io.netty.example.study.server.codec.OrderProtocolDecoder;
 import io.netty.example.study.server.codec.OrderProtocolEncoder;
 import io.netty.example.study.server.codec.handler.MetricHandler;
 import io.netty.example.study.server.codec.handler.OrderServerProcessHandler;
+import io.netty.example.study.server.codec.handler.ServerIdleCheckHandler;
+import io.netty.handler.flush.FlushConsolidationHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import io.netty.util.concurrent.UnorderedThreadPoolEventExecutor;
 
 import java.util.concurrent.ExecutionException;
 
@@ -40,11 +44,22 @@ public class Server {
 
 
         MetricHandler metricHandler = new MetricHandler();
+
+        UnorderedThreadPoolEventExecutor eventExecutors = new UnorderedThreadPoolEventExecutor(10, new DefaultThreadFactory("business"));
+        //以下不用使用池，只会取其中一个线程
+        //NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(0, new DefaultThreadFactory("business"));
+        //流量整形，全局配置
+        GlobalTrafficShapingHandler globalTrafficShapingHandler = new GlobalTrafficShapingHandler(new NioEventLoopGroup(),
+                100 * 1024 * 1024, 100 * 1024 * 1024, 1* 1000);
         bootstrap.childHandler(new ChannelInitializer<NioSocketChannel>() {
             @Override
             protected void initChannel(NioSocketChannel ch) throws Exception {
                 ChannelPipeline pipeline = ch.pipeline();
-                pipeline.addLast("LoggingHandler", new LoggingHandler(LogLevel.ERROR));
+                pipeline.addLast("LoggingHandler", new LoggingHandler(LogLevel.DEBUG));
+
+                pipeline.addLast("TSHandler", globalTrafficShapingHandler);
+                pipeline.addLast("ServerIdleCheckHandler", new ServerIdleCheckHandler());
+
                 pipeline.addLast("OrderFrameDecoder", new OrderFrameDecoder());
                 pipeline.addLast("OrderFrameEncoder", new OrderFrameEncoder());
                 pipeline.addLast("OrderProtocolDecoder", new OrderProtocolDecoder());
@@ -52,7 +67,10 @@ public class Server {
 
                 pipeline.addLast("MetricHandler", metricHandler);
 
-                pipeline.addLast("OrderServerProcessHandler", new OrderServerProcessHandler());
+                //调整flush次数并开启异步情况下多个write刷新一次的功能
+                pipeline.addLast("flushEnhance", new FlushConsolidationHandler(5, true));
+
+                pipeline.addLast(eventExecutors, new OrderServerProcessHandler());
             }
         });
 
